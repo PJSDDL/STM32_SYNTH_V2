@@ -1,0 +1,15 @@
+#define u8 unsigned char
+#define u32 unsigned int
+#define s8 signed char
+
+struct MIDI_CTRL
+{
+    u8 clk_div;
+    u32 mid_cnt;
+    u32 mid_index;
+    u32 mid_freq;	//音符频率
+    u8 mid_vec;		//音符力度
+	s8 note_shift;    //移调
+};
+
+void MIDI_Control(struct MIDI_CTRL *ctrl, const u32 MIDI_list[], u32 len, u8 *trig);

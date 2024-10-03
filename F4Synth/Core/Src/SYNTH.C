@@ -1,0 +1,165 @@
+#include "SYNTH.H"
+#include "MIDI.H"
+#include "WaveTable.h"
+
+extern const signed char SinTable[1000];
+extern const signed char NoiseTable[1000];
+extern const signed char OTTOTable[1000];
+extern const signed char PianoTable[1000];
+extern const signed char TrumptTable[1000];
+
+s8 Sample(const s8 table[], struct SampleCTRL *SampleCTRL)
+{
+    s8 output;
+    if (SampleCTRL->trig == 1)
+    {
+        SampleCTRL->index ++;
+        if (SampleCTRL->index >= SampleCTRL->max_len)
+        {
+            SampleCTRL->index = 0;
+            SampleCTRL->trig = 0;
+            output = 0;
+        }
+        else
+        {
+            output = table[SampleCTRL->index];
+        }
+    }
+    //trig置零，打断采样播放
+    else
+    {
+        SampleCTRL->index = 0;
+        output = 0;
+    }
+
+    return output;
+}
+
+void VCO_gen(struct VCO *VCO_1)
+{
+    //计算DDS相位
+    short phase_tmp = (VCO_1->phase)+(VCO_1->VCO_freq);
+    VCO_1->phase = (phase_tmp>=20000-1)
+                   ? (phase_tmp-20000-1)
+                   : phase_tmp;
+
+    switch(VCO_1->VCO_wavetype)  //波形种类
+    {
+    case 1:		//正弦
+        VCO_1->idx = VCO_1->phase/20;
+        VCO_1->VCO_Out = SinTable[VCO_1->idx];
+        break;
+    case 2:		//噪声
+        VCO_1->idx = VCO_1->phase/20;
+        VCO_1->VCO_Out = NoiseTable[VCO_1->idx];
+        break;
+    case 3:		//OTTO
+        VCO_1->idx = VCO_1->phase/20;
+        VCO_1->VCO_Out = OTTOTable[VCO_1->idx];
+        break;
+    case 4:		//Piano
+        VCO_1->idx = VCO_1->phase/20;
+        VCO_1->VCO_Out = PianoTable[VCO_1->idx];
+        break;
+    case 5:		//Trumpt
+        VCO_1->idx = VCO_1->phase/20;
+        VCO_1->VCO_Out = TrumptTable[VCO_1->idx];
+        break;
+    default:		//锯齿
+        VCO_1->idx = VCO_1->phase/80;
+        VCO_1->VCO_Out = VCO_1->idx - 20000 / 80 / 2;
+        break;
+    };
+}
+
+void ADSR(struct ADSR *ADSR_1)
+{
+    if(ADSR_1->ADSR_enable == 0)
+    {
+        return;
+    }
+
+    /*
+    if(ADSR_1->ADSR_reset == 1)
+    {
+        ADSR_1->ADSR_statu = 0;  //强行让ADSR关闭
+        ADSR_1->ADSR_count = 0;
+    }*/
+
+    switch(ADSR_1->ADSR_statu)  //ADSR状态机
+    {
+    case 2:  //Attack
+        if(ADSR_1->ADSR_count >= ADSR_1->A_time)
+        {
+            ADSR_1->ADSR_count = 0;
+            ADSR_1->ADSR_statu = 3;
+            break;
+        }
+
+        ADSR_1->ADSR_out_temp += ADSR_1->A_speed;
+        ADSR_1->ADSR_count++;
+
+        if(ADSR_1->ADSR_in == 0)
+        {
+            ADSR_1->ADSR_statu = 5;
+        }
+        break;
+    case 3:  //Decay
+        if(ADSR_1->ADSR_count >= ADSR_1->D_time)
+        {
+            ADSR_1->ADSR_count = 0;
+            ADSR_1->ADSR_statu = 4;
+            break;
+        }
+
+        ADSR_1->ADSR_out_temp -= ADSR_1->D_speed;
+        ADSR_1->ADSR_count++;
+
+        if(ADSR_1->ADSR_in == 0)
+        {
+            ADSR_1->ADSR_statu = 5;
+        }
+        break;
+    case 4:  //Sustain
+        if(ADSR_1->ADSR_in == 0)
+        {
+            ADSR_1->ADSR_statu = 5;
+        }
+        break;
+    case 5:  //Release
+        if(ADSR_1->ADSR_in == 1)
+        {
+            ADSR_1->ADSR_statu = 2;
+            break;
+        }
+
+        if(ADSR_1->ADSR_count >= ADSR_1->R_time)
+        {
+            ADSR_1->ADSR_count = 0;
+            ADSR_1->ADSR_statu = 1;
+            break;
+        }
+
+        ADSR_1->ADSR_out_temp -= ADSR_1->R_speed;
+        ADSR_1->ADSR_count++;
+
+        break;
+    default:  //不产生ADSR波形
+        ADSR_1->ADSR_count = 0;
+        (ADSR_1->ADSR_in == 1) ? (ADSR_1->ADSR_statu = 2) : 0;
+        ADSR_1->ADSR_out_temp = 0;
+        break;
+    };
+
+    ADSR_1->ADSR_out = (ADSR_1->velocity * ADSR_1->ADSR_out_temp) / 256;
+}
+
+void SaCtInit(struct SampleCTRL SampleCTRL[], u32 len)
+{
+    for (u8 index = 0; index < len; index++)
+    {
+        SampleCTRL[0].trig = 0;
+        SampleCTRL[0].index = 0;
+    }
+}
+

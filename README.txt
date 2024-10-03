@@ -9,4 +9,6 @@ F4Synth是STM32代码
 如何播放你自己的MIDI文件：
 使用MID2STM32中的PY脚本生成MID数组后，将数组保存在MIDI.C中，然后使用MAIN.C中的Synth_GM与Synth_SA即可生成音频
 
+示例效果：https://www.bilibili.com/video/BV1i3xDeZE1o/?spm_id_from=333.337.search-card.all.click&vd_source=d9c15207d1c46a5e2eb32ea5a47c38a9
+
 
